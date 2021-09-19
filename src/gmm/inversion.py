@@ -1,18 +1,74 @@
-def execute_inversion(iterations, *args, **kwargs):
+import numpy as np
+
+
+def execute_inversion(iterations, model, *args, **kwargs):
     print(f"This is where we would have a translation or wrapper of inver.f \
             {kwargs['ambient_field']}")
 
+    nden = np.zeros((12,))
+    nsus = np.zeros((12,))
+    a1 = np.zeros((150, 50))
+    ivz = np.zeros((12, 20))
+    ivx = np.zeros((12, 20))
+    gte = np.zeros((1, 32, 75))
+    gdif = np.zeros((150,))
+    mdif = np.zeros((150,))
+    s = np.zeros((50,))
+    v = np.zeros((50, 50))
+    e = np.zeros((150,))
+    w = np.zeros((150,))
+    atw = np.zeros((150, 150, 4))
+    _del = np.zeros((50,))
+
+    im = iterations
+    mpar = 0
+
+    iiw = "I want to write to disk"
+
+    # Set variables
+
+    # INPUT THE ESTIMATED VARIANCE FOR GRAVITY, MAGNETICS
+    vg = 0.0
+    vm = 0.0
+
+    mstat = model.nstat*2
+    if(model.ian > 0):
+        iden = 0
+        isus = 0
+        iver = 0
+    else:
+        # INPUT NO. OF DENSITY, SUSCEPTABLILITY, VERTEX \
+        # PARAMETERS TO BE ADJUSTED
+        iden = 0.0
+        isus = 0.0
+        iver = 0.0
     
+    for i in range(0, model.npoly):
+        nden[i] = 0
+        nsus[i] = 0
+        ns = model.nsides[i] + 1
+        for j in range(0, ns):
+            ivx[i, j] = 0
+            ivz[i, j] = 0
+
+    # INPUT PARAMETERS FOR INVERSION
+    itest = 0
+    if(iden <= 0):
+        pass
+    else:
+        
+
+
     # Line 159 inver.f
-    for i in range(0, kwargs["nstat"]):
+    for i in range(0, model.nstat):
         k = stat*1
-        for j in range(0, kwargs["npoly"]):
+        for j in range(0, model.npoly):
             sgn = 1
             sgm = 1
             
-            if(densty[j] < 0.0):
+            if(model.densty[j] < 0.0):
                 sgn = -1.0
-            if(suscp[j] < 0.0):
+            if(model.suscp[j] < 0.0):
                 sgm = -1.0
             
             nd = nden[j]
