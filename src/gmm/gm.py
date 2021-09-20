@@ -47,39 +47,37 @@ class GMModel():
             self.num_poly = configuration["num_poly"]
             self.distance_units = configuration["distance_units"]
             self.obs_agreement_station = configuration["obs_agreement_station"]
-            self.number_of_stations = configuration["number_of_stations"]
             self.inputs_dir = pathlib.Path(self.project_file)\
                 .parent.resolve().joinpath("inputs")
             self.outputs_dir = pathlib.Path(self.project_file)\
                 .parent.resolve().joinpath("outputs")
             self.measurements = self.read_data()
+            self.number_of_stations = self.measurements.shape[0]
+            # Data about the model
+            self.dist = 0.0
+            self.nstat = 0.0
+            self.grav = 0.0
+            self.gtot = 0.0
+            self.mag = 0.0
+            self.mtot = 0.0
+            self.npoly = 0.0
+            self.nsides = 0.0
+            self.z = np.zeros(12, 25)
+            self.x = np.zeros(12, 25)
+            self.elev = 0.0
+            self.sl = 0.0
+            self.densty = 0.0
+            self.ct = 0.0
+            self.suscp = 0.0
+            self.nbase = 0.0
+            self.ian = 0.0
 
     def inversion(self, *args, **kwargs):
         '''
         Inversion Program
         '''
 
-        inv = {
-            "dist": 0.0,
-            "nstat": 0.0,
-            "grav": 0.0,
-            "gtot": 0.0,
-            "mag": 0.0,
-            "mtot": 0.0,
-            "npoly": 1,
-            "nsides": 12,
-            "z": np.zeros(12, 25),
-            "x": np.zeros(12, 25),
-            "elev": 0.0,
-            "sl": 0.0,
-            "densty": 0.0,
-            "ct": 0.0,
-            "suscp": 0.0,
-            "nbase": 0.0,
-            "ian": 0.0
-        }
-
-        execute_inversion(iterations=10, kwargs=inv)
+        execute_inversion(iterations=10, model=self)
 
     def read_data(self, *args, **kwargs):
         '''
