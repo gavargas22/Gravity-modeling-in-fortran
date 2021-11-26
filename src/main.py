@@ -2,7 +2,7 @@ from test_simulation import test_simulation
 
 
 def run_gmm():
-    print("Howdy")
+    test_simulation()
 
 
 if __name__ == "__main__":
