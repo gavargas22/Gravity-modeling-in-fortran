@@ -18,8 +18,16 @@
 			"dependsOn": [
 				"docker-build"
 			],
+			"dockerRun": {
+				"volumes": [
+					{
+						"containerPath": "/app",
+						"localPath": "${workspaceFolder}"
+					}
+				]
+			},
 			"python": {
-				"file": "src\\test_simulation.py"
+				"file": "src/test_simulation.py"
 			}
 		}
 	]

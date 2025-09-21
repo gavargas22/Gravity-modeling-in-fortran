@@ -2,3 +2,4 @@ pandas
 numpy
 pint
 Gooey
+tk

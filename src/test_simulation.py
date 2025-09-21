@@ -9,11 +9,15 @@ from gooey import Gooey, GooeyParser
     program_description="Software made by Dr. Serpa",
 )
 def test_simulation():
-    root = tk.Tk()
-    root.withdraw()
-    # Get a file path from a file dialog
-    file_path = ""
-    file_path = filedialog.askopenfilename()
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        # Get a file path from a file dialog
+        file_path = ""
+        file_path = filedialog.askopenfilename()
+    except Exception:
+        print("Using a file in the filesystem")
+        file_path = "models/test1/test1.json"
 
     if file_path == "":
         print("Nothing to read")

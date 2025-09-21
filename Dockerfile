@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 RUN apt update &&\
-    apt install -y libgtk2.0-dev libgtk-3-dev gcc build-essential gfortran
+    apt install -y libgtk2.0-dev libgtk-3-dev gcc build-essential gfortran libtk8.6
 
 # Install pip requirements
 COPY requirements.txt .
@@ -21,6 +21,9 @@ COPY . /app
 # For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
 # RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
 # USER appuser
+
+# Build the inver module221
+RUN python -m numpy.f2py -c inver.f svd.f talw.f rotate.f -m inver
 
 # During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
 CMD ["python", "src/test_simulation.py"]

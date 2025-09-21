@@ -56,7 +56,7 @@ class GMModel():
             # Data about the model
             self.dist = self.measurements.distance
             self.nstat = self.measurements.station.count()
-            self.grav = self.measurements.gravity
+            self.grav = self.measurements.obs_grav
             self.gtot = 0.0
             self.mag = 0.0
             self.mtot = 0.0
