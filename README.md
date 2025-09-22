@@ -8,12 +8,14 @@ Computer code written in about 1980 that needs to be updated. This project is un
 - **Complete Python Translation**: Fortran algorithms translated to Python (inversion, forward modeling)
 - **Modern GUI**: PySide6-based interface replacing Gooey
 - **Data Management**: Enhanced project loading and geometry handling
-- **Testing Framework**: Unit tests and validation against Fortran outputs
+- **API Layer**: Clean separation between GUI and computation with progress reporting
+- **Parameter Adjustment**: Iterative parameter optimization implemented
+- **Project Serialization**: Save/load project functionality with validation
 
 ### 🚧 In Progress
-- **Parameter Adjustment**: Implementing iterative parameter optimization
 - **Visualization**: Adding matplotlib plots for data and model visualization
 - **Validation**: Comparing Python results with original Fortran outputs
+- **Advanced Features**: 3D model visualization and batch processing
 
 ## Installation
 
@@ -38,10 +40,21 @@ python src/gravity_modeling_app.py
 ```
 
 Features:
-- Project explorer with file tree
-- Interactive parameter editing
-- Real-time inversion execution
-- Results visualization (coming soon)
+- **Project Management**: Create, load, save, and validate projects
+- **Interactive Parameter Editing**: Real-time adjustment of model parameters
+- **Inversion Controls**: Configurable iterations with/without parameter adjustment
+- **Progress Monitoring**: Real-time progress updates during inversion
+- **Results Visualization**: Parameter tables and inversion statistics
+- **Data Validation**: Comprehensive project validation with error reporting
+
+### Programmatic API
+```python
+from gmm.api import GravityModelingAPI
+
+api = GravityModelingAPI()
+result = api.load_project("models/test1/test1.json")
+api.run_inversion(iterations=10, enable_parameter_adjustment=True)
+```
 
 ### Legacy Fortran Build (deprecated)
 ```bash
@@ -52,11 +65,12 @@ python -m numpy.f2py -c inver.f svd.f talw.f rotate.f -m inver
 
 ```
 src/
-├── gravity_modeling_app.py    # Modern PySide6 GUI
+├── gravity_modeling_app.py    # Modern PySide6 GUI with API integration
 ├── gmm/
-│   ├── gm.py                   # Main model class
-│   ├── inversion_complete.py   # Python inversion algorithm
-│   └── talw.py                 # Field calculation functions
+│   ├── api.py                 # API layer for computation/GUI separation
+│   ├── gm.py                  # Enhanced model class with validation
+│   ├── inversion_complete.py  # Python inversion algorithm
+│   └── talw.py                # Field calculation functions
 models/
 ├── test1/                     # Test project data
 └── .agentic-docs/
