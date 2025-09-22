@@ -75,47 +75,13 @@ class GMModel():
             with open(self.project_file, mode="r") as f:
                 configuration = json.load(f)
 
-            # Validate required fields
-            required_fields = [
-                "project_name", "ambient_field", "inclination", "units",
-                "azimuth", "modeling_mode", "num_poly", "distance_units",
-                "obs_agreement_station"
-            ]
-
-            for field in required_fields:
-                if field not in configuration:
-                    self.validation_errors.append(f"Missing required field: {field}")
-                    continue
-
-                setattr(self, field, configuration[field])
-
-            # Load data files
-            self.inputs_dir = project_path.parent / "inputs"
-            self.outputs_dir = project_path.parent / "outputs"
-
-            if not self.inputs_dir.exists():
-                self.validation_errors.append(f"Inputs directory not found: {self.inputs_dir}")
-                return
-
-            # Load measurements
-            self.measurements = self.read_data()
-            if self.measurements is None or self.measurements.empty:
-                self.validation_errors.append("Failed to load measurement data")
-                return
-
-            self.number_of_stations = len(self.measurements)
-
-            # Load model geometry
-            self.load_model_geometry()
-
-            # Initialize computed fields
-            self._initialize_computed_fields()
-
-            # Calculate magnetic field components
-            self.calculate_magnetic_field_components()
-
-            # Validate data consistency
-            self._validate_data_consistency()
+            # Check if this is the new embedded data format or old file-based format
+            if "stations" in configuration and "polygons" in configuration:
+                # New embedded data format
+                self._load_embedded_data_project(configuration)
+            else:
+                # Old file-based format
+                self._load_file_based_project(configuration)
 
             self.is_valid = len(self.validation_errors) == 0
 
@@ -280,8 +246,8 @@ class GMModel():
             # Default single polygon for testing
             self.npoly = 1
             self.nsides = np.array([6])
-            self.z = np.zeros((12, 25))
-            self.x = np.zeros((12, 25))
+            self.z = np.zeros((self.npoly, 25))
+            self.x = np.zeros((self.npoly, 25))
             self.sl = np.array([100.0])
             self.densty = np.array([-0.2])
             self.suscp = np.array([0.0])
@@ -351,3 +317,116 @@ class GMModel():
         self.pxcf = pxcf
         self.pzcf = pzcf
         self.qcf = qcf
+
+    def _load_embedded_data_project(self, configuration):
+        """Load project with embedded data in JSON format"""
+        # Set basic project parameters
+        self.project_name = configuration.get("name", "Unnamed Project")
+        self.ambient_field = configuration.get("model_parameters", {}).get("earth_magnetic_field", {}).get("intensity", 50000.0)
+        self.inclination = configuration.get("model_parameters", {}).get("earth_magnetic_field", {}).get("inclination", 65.0)
+        self.azimuth = configuration.get("model_parameters", {}).get("earth_magnetic_field", {}).get("declination", 12.0)
+        self.units = configuration.get("model_parameters", {}).get("units", {}).get("gravity", "mGal")
+        self.modeling_mode = "gravity"  # Default, could be extended for magnetics
+        self.distance_units = configuration.get("model_parameters", {}).get("units", {}).get("length", "meters")
+        self.obs_agreement_station = 1  # Default reference station
+
+        # Load stations data
+        stations = configuration.get("stations", [])
+        if not stations:
+            self.validation_errors.append("No station data found in project")
+            return
+
+        # Convert stations to measurements DataFrame
+        measurements_data = []
+        for station in stations:
+            measurements_data.append({
+                'distance': station['x'],  # Use x as distance for 2D profiles
+                'obs_grav': station.get('gravity_observed', 0.0),
+                'obs_mag': station.get('magnetic_observed', 0.0),
+                'elev': station.get('z', 0.0),
+                'grav_error': station.get('gravity_error', 0.1),
+                'mag_error': station.get('magnetic_error', 5.0)
+            })
+
+        self.measurements = pd.DataFrame(measurements_data)
+        self.number_of_stations = len(self.measurements)
+
+        # Load polygons
+        polygons = configuration.get("polygons", [])
+        self.num_poly = len(polygons)
+        self.npoly = self.num_poly  # Also set npoly for compatibility
+
+        # Initialize polygon arrays with proper dimensions
+        self.nsides = np.zeros(self.npoly, dtype=int)
+        self.z = np.zeros((self.npoly, 25))
+        self.x = np.zeros((self.npoly, 25))
+        self.sl = np.zeros(self.npoly)
+        self.densty = np.zeros(self.npoly)
+        self.suscp = np.zeros(self.npoly)
+
+        for i, poly in enumerate(polygons):
+            vertices = poly.get("vertices", [])
+            self.nsides[i] = len(vertices)
+
+            # Store vertices (up to 25 vertices supported)
+            for j, vertex in enumerate(vertices[:25]):
+                self.x[i, j] = vertex['x']
+                self.z[i, j] = vertex['z']
+
+            # Store properties
+            self.densty[i] = poly.get('density', 0.0)
+            self.suscp[i] = poly.get('susceptibility', 0.0)
+            self.sl[i] = poly.get('strike_length', 100.0)  # Default strike length
+
+        # Initialize computed fields
+        self._initialize_computed_fields()
+
+        # Calculate magnetic field components
+        self.calculate_magnetic_field_components()
+
+        # Validate data consistency
+        self._validate_data_consistency()
+
+    def _load_file_based_project(self, configuration):
+        """Load project using the old file-based format"""
+        # Validate required fields
+        required_fields = [
+            "project_name", "ambient_field", "inclination", "units",
+            "azimuth", "modeling_mode", "num_poly", "distance_units",
+            "obs_agreement_station"
+        ]
+
+        for field in required_fields:
+            if field not in configuration:
+                self.validation_errors.append(f"Missing required field: {field}")
+                continue
+
+            setattr(self, field, configuration[field])
+
+        # Load data files
+        self.inputs_dir = pathlib.Path(self.project_file).parent / "inputs"
+        self.outputs_dir = pathlib.Path(self.project_file).parent / "outputs"
+
+        if not self.inputs_dir.exists():
+            self.validation_errors.append(f"Inputs directory not found: {self.inputs_dir}")
+            return
+
+        # Load measurements
+        self.measurements = self.read_data()
+        if self.measurements is None or self.measurements.empty:
+            self.validation_errors.append("Failed to load measurement data")
+            return
+
+        self.number_of_stations = len(self.measurements)
+
+        # Load model geometry
+        self.load_model_geometry()
+
+        # Initialize computed fields
+        self._initialize_computed_fields()
+
+        # Calculate magnetic field components
+        self.calculate_magnetic_field_components()
+
+        # Validate data consistency
+        self._validate_data_consistency()

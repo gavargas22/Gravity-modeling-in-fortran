@@ -1,0 +1,131 @@
+{
+  "name": "3D Magmatic Intrusion Example",
+  "description": "A 3D gravity survey over a buried magmatic intrusion. This example demonstrates 3D modeling with multiple anomalous bodies and grid station coverage.",
+  "created": "2025-09-21",
+  "author": "Gravity Modeling Examples",
+
+  "stations": [
+    {"id": 1, "x": 0.0, "y": 0.0, "z": 0.0, "gravity_observed": 0.0, "gravity_error": 0.2},
+    {"id": 2, "x": 100.0, "y": 0.0, "z": 0.0, "gravity_observed": 0.1, "gravity_error": 0.2},
+    {"id": 3, "x": 200.0, "y": 0.0, "z": 0.0, "gravity_observed": 0.3, "gravity_error": 0.2},
+    {"id": 4, "x": 300.0, "y": 0.0, "z": 0.0, "gravity_observed": 0.8, "gravity_error": 0.2},
+    {"id": 5, "x": 400.0, "y": 0.0, "z": 0.0, "gravity_observed": 1.2, "gravity_error": 0.2},
+    {"id": 6, "x": 500.0, "y": 0.0, "z": 0.0, "gravity_observed": 1.1, "gravity_error": 0.2},
+    {"id": 7, "x": 600.0, "y": 0.0, "z": 0.0, "gravity_observed": 0.7, "gravity_error": 0.2},
+    {"id": 8, "x": 700.0, "y": 0.0, "z": 0.0, "gravity_observed": 0.3, "gravity_error": 0.2},
+    {"id": 9, "x": 800.0, "y": 0.0, "z": 0.0, "gravity_observed": 0.1, "gravity_error": 0.2},
+
+    {"id": 10, "x": 0.0, "y": 100.0, "z": 0.0, "gravity_observed": 0.0, "gravity_error": 0.2},
+    {"id": 11, "x": 100.0, "y": 100.0, "z": 0.0, "gravity_observed": 0.2, "gravity_error": 0.2},
+    {"id": 12, "x": 200.0, "y": 100.0, "z": 0.0, "gravity_observed": 0.5, "gravity_error": 0.2},
+    {"id": 13, "x": 300.0, "y": 100.0, "z": 0.0, "gravity_observed": 1.1, "gravity_error": 0.2},
+    {"id": 14, "x": 400.0, "y": 100.0, "z": 0.0, "gravity_observed": 1.8, "gravity_error": 0.2},
+    {"id": 15, "x": 500.0, "y": 100.0, "z": 0.0, "gravity_observed": 1.9, "gravity_error": 0.2},
+    {"id": 16, "x": 600.0, "y": 100.0, "z": 0.0, "gravity_observed": 1.3, "gravity_error": 0.2},
+    {"id": 17, "x": 700.0, "y": 100.0, "z": 0.0, "gravity_observed": 0.6, "gravity_error": 0.2},
+    {"id": 18, "x": 800.0, "y": 100.0, "z": 0.0, "gravity_observed": 0.2, "gravity_error": 0.2},
+
+    {"id": 19, "x": 0.0, "y": 200.0, "z": 0.0, "gravity_observed": 0.0, "gravity_error": 0.2},
+    {"id": 20, "x": 100.0, "y": 200.0, "z": 0.0, "gravity_observed": 0.1, "gravity_error": 0.2},
+    {"id": 21, "x": 200.0, "y": 200.0, "z": 0.0, "gravity_observed": 0.4, "gravity_error": 0.2},
+    {"id": 22, "x": 300.0, "y": 200.0, "z": 0.0, "gravity_observed": 0.9, "gravity_error": 0.2},
+    {"id": 23, "x": 400.0, "y": 200.0, "z": 0.0, "gravity_observed": 1.4, "gravity_error": 0.2},
+    {"id": 24, "x": 500.0, "y": 200.0, "z": 0.0, "gravity_observed": 1.5, "gravity_error": 0.2},
+    {"id": 25, "x": 600.0, "y": 200.0, "z": 0.0, "gravity_observed": 1.0, "gravity_error": 0.2},
+    {"id": 26, "x": 700.0, "y": 200.0, "z": 0.0, "gravity_observed": 0.5, "gravity_error": 0.2},
+    {"id": 27, "x": 800.0, "y": 200.0, "z": 0.0, "gravity_observed": 0.1, "gravity_error": 0.2},
+
+    {"id": 28, "x": 0.0, "y": 300.0, "z": 0.0, "gravity_observed": 0.0, "gravity_error": 0.2},
+    {"id": 29, "x": 100.0, "y": 300.0, "z": 0.0, "gravity_observed": 0.1, "gravity_error": 0.2},
+    {"id": 30, "x": 200.0, "y": 300.0, "z": 0.0, "gravity_observed": 0.3, "gravity_error": 0.2},
+    {"id": 31, "x": 300.0, "y": 300.0, "z": 0.0, "gravity_observed": 0.6, "gravity_error": 0.2},
+    {"id": 32, "x": 400.0, "y": 300.0, "z": 0.0, "gravity_observed": 0.9, "gravity_error": 0.2},
+    {"id": 33, "x": 500.0, "y": 300.0, "z": 0.0, "gravity_observed": 1.0, "gravity_error": 0.2},
+    {"id": 34, "x": 600.0, "y": 300.0, "z": 0.0, "gravity_observed": 0.7, "gravity_error": 0.2},
+    {"id": 35, "x": 700.0, "y": 300.0, "z": 0.0, "gravity_observed": 0.3, "gravity_error": 0.2},
+    {"id": 36, "x": 800.0, "y": 300.0, "z": 0.0, "gravity_observed": 0.1, "gravity_error": 0.2}
+  ],
+
+  "polygons": [
+    {
+      "id": 1,
+      "name": "Sedimentary Basin",
+      "vertices": [
+        {"x": -200.0, "y": -200.0, "z": 0.0},
+        {"x": 1000.0, "y": -200.0, "z": 0.0},
+        {"x": 1000.0, "y": 500.0, "z": 0.0},
+        {"x": -200.0, "y": 500.0, "z": 0.0}
+      ],
+      "density": -0.15,
+      "susceptibility": 0.00005,
+      "fixed_density": true,
+      "fixed_susceptibility": true,
+      "description": "Low-density sedimentary basin fill"
+    },
+    {
+      "id": 2,
+      "name": "Main Intrusion",
+      "vertices": [
+        {"x": 300.0, "y": 50.0, "z": -300.0},
+        {"x": 500.0, "y": 50.0, "z": -300.0},
+        {"x": 500.0, "y": 250.0, "z": -300.0},
+        {"x": 300.0, "y": 250.0, "z": -300.0},
+        {"x": 300.0, "y": 50.0, "z": -100.0},
+        {"x": 500.0, "y": 50.0, "z": -100.0},
+        {"x": 500.0, "y": 250.0, "z": -100.0},
+        {"x": 300.0, "y": 250.0, "z": -100.0}
+      ],
+      "density": 0.3,
+      "susceptibility": 0.002,
+      "fixed_density": false,
+      "fixed_susceptibility": false,
+      "description": "Main magmatic intrusion body, 200m thick at 100-300m depth"
+    },
+    {
+      "id": 3,
+      "name": "Small Satellite Body",
+      "vertices": [
+        {"x": 150.0, "y": 150.0, "z": -250.0},
+        {"x": 250.0, "y": 150.0, "z": -250.0},
+        {"x": 250.0, "y": 200.0, "z": -250.0},
+        {"x": 150.0, "y": 200.0, "z": -250.0},
+        {"x": 150.0, "y": 150.0, "z": -200.0},
+        {"x": 250.0, "y": 150.0, "z": -200.0},
+        {"x": 250.0, "y": 200.0, "z": -200.0},
+        {"x": 150.0, "y": 200.0, "z": -200.0}
+      ],
+      "density": 0.25,
+      "susceptibility": 0.0015,
+      "fixed_density": false,
+      "fixed_susceptibility": false,
+      "description": "Smaller satellite intrusion body"
+    }
+  ],
+
+  "model_parameters": {
+    "coordinate_system": "local",
+    "units": {
+      "length": "meters",
+      "density": "g/cm³",
+      "gravity": "mGal",
+      "magnetic": "nT"
+    },
+    "reference_density": 2.67,
+    "earth_magnetic_field": {
+      "intensity": 0.48,
+      "inclination": 60.0,
+      "declination": 15.0
+    }
+  },
+
+  "inversion_settings": {
+    "max_iterations": 15,
+    "convergence_tolerance": 0.001,
+    "parameter_bounds": {
+      "density_min": -0.5,
+      "density_max": 1.0,
+      "susceptibility_min": 0.00001,
+      "susceptibility_max": 0.01
+    }
+  }
+}
