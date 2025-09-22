@@ -1,2 +1,10 @@
 __pycache__
-.vscode
+.agentic-docs
+.venv
+
+# PyInstaller
+*.spec
+build/
+dist/
+*.exe
+docs/_build/

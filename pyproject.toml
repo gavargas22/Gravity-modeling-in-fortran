@@ -1,0 +1,18 @@
+[project]
+name = "gravity-modeling-in-fortran"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.10.6",
+    "numpy>=2.3.3",
+    "pandas>=2.3.2",
+    "pint>=0.25",
+]
+
+[dependency-groups]
+dev = [
+    "myst-parser>=4.0.1",
+    "pyinstaller>=6.16.0",
+    "sphinx>=8.2.3",
+    "sphinx-rtd-theme>=3.0.2",
+]

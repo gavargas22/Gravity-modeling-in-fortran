@@ -1,2 +1,8 @@
 pandas
 numpy
+pint
+Gooey
+tk
+scipy
+PySide6
+matplotlib
