@@ -6,19 +6,149 @@ Enhanced with API layer and progress reporting
 import sys
 import os
 from pathlib import Path
+import numpy as np
+
+# Set matplotlib backend before importing pyplot
+os.environ['QT_API'] = 'PySide6'
+import matplotlib
+matplotlib.use('QtAgg')  # Use QtAgg backend for PySide6 compatibility
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QTreeWidget, QTreeWidgetItem, QTabWidget, QTextEdit,
     QTableWidget, QTableWidgetItem, QStatusBar, QMenuBar, QMenu,
     QProgressBar, QLabel, QSplitter, QCheckBox, QSpinBox, QGroupBox,
-    QFormLayout, QLineEdit, QPushButton, QMessageBox, QFileDialog
+    QFormLayout, QLineEdit, QPushButton, QMessageBox, QFileDialog,
+    QComboBox, QFrame
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QAction, QFont, QDoubleValidator
 
 from gmm.api import GravityModelingAPI
 from gmm.gm import InversionProgress
+
+
+class MatplotlibCanvas(FigureCanvas):
+    """Custom matplotlib canvas for PySide6 integration"""
+
+    def __init__(self, parent=None, width=8, height=6, dpi=100):
+        self.figure = Figure(figsize=(width, height), dpi=dpi)
+        super().__init__(self.figure)
+        self.setParent(parent)
+
+        # Create subplot
+        self.axes = self.figure.add_subplot(111)
+
+        # Set default styling
+        self.figure.patch.set_facecolor('#f0f0f0')
+        self.axes.grid(True, alpha=0.3)
+        self.axes.set_xlabel('Distance (m)')
+        self.axes.set_ylabel('Gravity Anomaly (mGal)')
+
+    def clear_plot(self):
+        """Clear the current plot"""
+        self.axes.clear()
+        self.axes.grid(True, alpha=0.3)
+        self.draw()
+
+    def plot_profile(self, x_data, y_obs, y_calc=None, residuals=None, title="Gravity Profile"):
+        """Plot gravity profile with observed and calculated data"""
+        self.axes.clear()
+        self.axes.grid(True, alpha=0.3)
+
+        # Plot observed data
+        self.axes.plot(x_data, y_obs, 'bo-', label='Observed', markersize=4, linewidth=1)
+
+        # Plot calculated data if available
+        if y_calc is not None:
+            self.axes.plot(x_data, y_calc, 'r-', label='Calculated', linewidth=2)
+
+        # Plot residuals if available
+        if residuals is not None:
+            ax2 = self.axes.twinx()
+            ax2.plot(x_data, residuals, 'g--', label='Residuals', alpha=0.7)
+            ax2.set_ylabel('Residuals (mGal)', color='g')
+            ax2.tick_params(axis='y', labelcolor='g')
+
+        self.axes.set_xlabel('Distance (m)')
+        self.axes.set_ylabel('Gravity Anomaly (mGal)')
+        self.axes.set_title(title)
+        self.axes.legend()
+
+        self.figure.tight_layout()
+        self.draw()
+
+    def plot_residuals(self, x_data, residuals, title="Residual Analysis"):
+        """Plot residuals analysis"""
+        self.axes.clear()
+        self.axes.grid(True, alpha=0.3)
+
+        # Plot residuals
+        self.axes.plot(x_data, residuals, 'g-o', markersize=3, linewidth=1, alpha=0.8)
+
+        # Add zero line
+        self.axes.axhline(y=0, color='r', linestyle='--', alpha=0.5)
+
+        # Add statistics
+        rms = np.sqrt(np.mean(residuals**2))
+        mean_res = np.mean(residuals)
+        std_res = np.std(residuals)
+
+        stats_text = '.2f'
+        self.axes.text(0.02, 0.98, stats_text, transform=self.axes.transAxes,
+                      verticalalignment='top', fontsize=9,
+                      bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
+        self.axes.set_xlabel('Distance (m)')
+        self.axes.set_ylabel('Residuals (mGal)')
+        self.axes.set_title(title)
+
+        self.figure.tight_layout()
+        self.draw()
+
+    def plot_model_geometry(self, model, title="Model Geometry"):
+        """Plot 2D model geometry"""
+        self.axes.clear()
+        self.axes.grid(True, alpha=0.3)
+
+        # Plot polygons
+        colors = ['lightblue', 'lightgreen', 'lightcoral', 'lightyellow', 'lightpink']
+
+        for i in range(model.npoly):
+            # Get polygon vertices
+            vertices = []
+            for j in range(model.nsides[i]):
+                if j < model.x.shape[1] and j < model.z.shape[1]:
+                    x = model.x[i, j]
+                    z = model.z[i, j]
+                    if not (np.isnan(x) or np.isnan(z)):
+                        vertices.append((x, z))
+
+            if len(vertices) > 2:
+                # Close the polygon
+                vertices.append(vertices[0])
+                x_coords, z_coords = zip(*vertices)
+
+                # Plot polygon
+                color = colors[i % len(colors)]
+                self.axes.fill(x_coords, z_coords, color=color, alpha=0.6,
+                              label=f'Polygon {i+1} (ρ={model.densty[i]:.3f})')
+
+                # Plot outline
+                self.axes.plot(x_coords, z_coords, 'k-', linewidth=1)
+
+        self.axes.set_xlabel('Distance (m)')
+        self.axes.set_ylabel('Depth (m)')
+        self.axes.set_title(title)
+        self.axes.legend()
+        self.axes.invert_yaxis()  # Depth increases downward
+
+        self.figure.tight_layout()
+        self.draw()
 
 
 class InversionWorker(QThread):
@@ -95,6 +225,119 @@ class GravityModelingApp(QMainWindow):
         # Apply styling
         self.apply_styling()
 
+    def create_menus(self):
+        """Create application menus"""
+        menubar = self.menuBar()
+
+        # File menu
+        file_menu = menubar.addMenu("File")
+
+        load_action = QAction("Load Project", self)
+        load_action.triggered.connect(self.load_project)
+        file_menu.addAction(load_action)
+
+        save_action = QAction("Save Project", self)
+        save_action.triggered.connect(self.save_project)
+        file_menu.addAction(save_action)
+
+        file_menu.addSeparator()
+
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # View menu
+        view_menu = menubar.addMenu("View")
+
+        # Help menu
+        help_menu = menubar.addMenu("Help")
+
+        about_action = QAction("About", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+
+    def create_status_bar(self):
+        """Create status bar"""
+        self.status_bar = self.statusBar()
+
+        # Status label
+        self.status_label = QLabel("Ready")
+        self.status_bar.addWidget(self.status_label)
+
+        # Progress bar (initially hidden)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setMaximumWidth(200)
+        self.status_bar.addPermanentWidget(self.progress_bar)
+
+    def apply_styling(self):
+        """Apply application styling"""
+        # Set a modern style
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f5f5f5;
+            }
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #cccccc;
+                border-radius: 5px;
+                margin-top: 1ex;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+            QPushButton {
+                background-color: #ffffff;
+                border: 1px solid #cccccc;
+                border-radius: 3px;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #e6f3ff;
+            }
+            QPushButton:pressed {
+                background-color: #cce7ff;
+            }
+        """)
+
+    def load_project(self):
+        """Load project via menu"""
+        file_dialog = QFileDialog()
+        file_dialog.setNameFilter("Project files (*.json)")
+
+        if file_dialog.exec():
+            selected_file = file_dialog.selectedFiles()[0]
+            result = self.api.load_project(selected_file)
+
+            if result["success"]:
+                self.status_label.setText(f"Loaded project: {self.api.current_model.project_name}")
+                self.update_ui_from_project()
+            else:
+                QMessageBox.critical(self, "Load Failed",
+                                   f"Failed to load project:\n{result.get('message', 'Unknown error')}")
+
+    def save_project(self):
+        """Save project via menu"""
+        if not self.api.current_model:
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
+            return
+
+        result = self.api.save_project()
+        if result["success"]:
+            self.status_label.setText("Project saved successfully")
+        else:
+            QMessageBox.critical(self, "Save Failed",
+                               f"Failed to save project:\n{result.get('message', 'Unknown error')}")
+
+    def show_about(self):
+        """Show about dialog"""
+        QMessageBox.about(self, "About Gravity Modeling",
+                         "Gravity and Magnetics Modeling Application\n"
+                         "Modern Python implementation with PySide6 GUI\n"
+                         "Enhanced with matplotlib visualization and batch processing")
+
     def create_project_explorer(self):
         """Create the project explorer tree"""
         self.project_explorer = QTreeWidget()
@@ -148,6 +391,9 @@ class GravityModelingApp(QMainWindow):
         # Data Visualization Tab
         self.create_visualization_tab()
 
+        # Batch Processing Tab
+        self.create_batch_processing_tab()
+
         # Parameter Editor Tab
         self.create_parameter_tab()
 
@@ -186,63 +432,258 @@ class GravityModelingApp(QMainWindow):
         layout.addWidget(self.progress_bar)
 
     def create_visualization_tab(self):
-        """Create data visualization tab"""
+        """Create data visualization tab with matplotlib plots"""
         viz_widget = QWidget()
         layout = QVBoxLayout(viz_widget)
 
-        # Placeholder for matplotlib plots
-        self.plot_area = QTextEdit()
-        self.plot_area.setPlainText("Data visualization will be implemented here\n"
-                                  "- Profile plot (observed vs calculated)\n"
-                                  "- Residual plot\n"
-                                  "- Model geometry view\n"
-                                  "- Real-time parameter adjustment")
-        self.plot_area.setReadOnly(True)
+        # Plot controls
+        controls_layout = QHBoxLayout()
 
-        layout.addWidget(self.plot_area)
+        # Plot type selector
+        controls_layout.addWidget(QLabel("Plot Type:"))
+        self.plot_type_combo = QComboBox()
+        self.plot_type_combo.addItems([
+            "Profile (Obs vs Calc)",
+            "Residuals Analysis",
+            "Model Geometry",
+            "3D Model View"
+        ])
+        self.plot_type_combo.currentTextChanged.connect(self.update_plot)
+        controls_layout.addWidget(self.plot_type_combo)
+
+        # Update plot button
+        self.update_plot_button = QPushButton("Update Plot")
+        self.update_plot_button.clicked.connect(self.update_plot)
+        controls_layout.addWidget(self.update_plot_button)
+
+        controls_layout.addStretch()
+        layout.addLayout(controls_layout)
+
+        # Create matplotlib canvas
+        self.canvas = MatplotlibCanvas(viz_widget, width=8, height=6)
+        layout.addWidget(self.canvas)
+
+        # Add navigation toolbar
+        self.toolbar = NavigationToolbar(self.canvas, viz_widget)
+        layout.addWidget(self.toolbar)
+
+        # Status label for plot info
+        self.plot_status = QLabel("Load a project and run inversion to see plots")
+        layout.addWidget(self.plot_status)
+
         self.tab_widget.addTab(viz_widget, "Visualization")
+
+    def update_plot(self):
+        """Update the current plot based on selected type"""
+        if not self.api.current_model:
+            self.plot_status.setText("No project loaded")
+            self.canvas.clear_plot()
+            return
+
+        plot_type = self.plot_type_combo.currentText()
+
+        try:
+            if plot_type == "Profile (Obs vs Calc)":
+                self.plot_profile_comparison()
+            elif plot_type == "Residuals Analysis":
+                self.plot_residuals_analysis()
+            elif plot_type == "Model Geometry":
+                self.plot_model_geometry_view()
+            elif plot_type == "3D Model View":
+                self.plot_3d_model_view()
+        except Exception as e:
+            self.plot_status.setText(f"Error creating plot: {str(e)}")
+            self.canvas.clear_plot()
+
+    def plot_profile_comparison(self):
+        """Plot observed vs calculated gravity profile"""
+        model = self.api.current_model
+
+        # Get station data
+        distances = model.measurements.distance.values
+        observed = model.measurements.obs_grav.values
+
+        # Get calculated data if available
+        calculated = None
+        if hasattr(model, 'gtot') and len(model.gtot) > 0:
+            calculated = model.gtot.copy()
+
+        # Calculate residuals if both datasets available
+        residuals = None
+        if calculated is not None:
+            residuals = observed - calculated
+
+        # Plot the data
+        title = f"Gravity Profile - {model.project_name}"
+        self.canvas.plot_profile(distances, observed, calculated, residuals, title)
+
+        # Update status
+        if calculated is not None:
+            rms = np.sqrt(np.mean(residuals**2)) if residuals is not None else 0
+            self.plot_status.setText(".2f")
+        else:
+            self.plot_status.setText("Showing observed data only (run inversion for calculated data)")
+
+    def plot_residuals_analysis(self):
+        """Plot residuals analysis"""
+        model = self.api.current_model
+
+        # Check if we have calculated data
+        if not hasattr(model, 'gtot') or len(model.gtot) == 0:
+            self.plot_status.setText("Run inversion first to generate residuals")
+            self.canvas.clear_plot()
+            return
+
+        distances = model.measurements.distance.values
+        observed = model.measurements.obs_grav.values
+        calculated = model.gtot
+        residuals = observed - calculated
+
+        title = f"Residual Analysis - {model.project_name}"
+        self.canvas.plot_residuals(distances, residuals, title)
+
+        # Update status with statistics
+        rms = np.sqrt(np.mean(residuals**2))
+        mean_res = np.mean(residuals)
+        std_res = np.std(residuals)
+        self.plot_status.setText(".2f")
+
+    def plot_model_geometry_view(self):
+        """Plot 2D model geometry"""
+        model = self.api.current_model
+
+        title = f"Model Geometry - {model.project_name}"
+        self.canvas.plot_model_geometry(model, title)
+
+        self.plot_status.setText(f"Showing {model.npoly} polygons")
+
+    def plot_3d_model_view(self):
+        """Plot 3D model view with polygons and optional field vectors"""
+        model = self.api.current_model
+
+        # Clear and set up 3D axes
+        self.canvas.figure.clear()
+        self.axes = self.canvas.figure.add_subplot(111, projection='3d')
+
+        # Set labels and title
+        self.axes.set_xlabel('X Distance (m)')
+        self.axes.set_ylabel('Y Distance (m)')
+        self.axes.set_zlabel('Depth (m)')
+        self.axes.set_title(f"3D Model View - {model.project_name}")
+
+        # Plot polygons as 3D surfaces
+        colors = ['lightblue', 'lightgreen', 'lightcoral', 'lightyellow', 'lightpink']
+
+        for i in range(model.npoly):
+            # Get polygon vertices
+            vertices = []
+            for j in range(model.nsides[i]):
+                if j < model.x.shape[1] and j < model.z.shape[1]:
+                    x = model.x[i, j]
+                    y = 0.0  # Assume 2.5D model (constant Y)
+                    z = model.z[i, j]
+                    if not (np.isnan(x) or np.isnan(z)):
+                        vertices.append((x, y, z))
+
+            if len(vertices) > 2:
+                # Create polygon surface
+                x_coords, y_coords, z_coords = zip(*vertices)
+
+                # Plot the polygon outline
+                self.axes.plot(x_coords + (x_coords[0],),  # Close the polygon
+                              y_coords + (y_coords[0],),
+                              z_coords + (z_coords[0],),
+                              'k-', linewidth=2)
+
+                # Fill the polygon (simplified - just plot the boundary)
+                color = colors[i % len(colors)]
+                self.axes.fill(x_coords, y_coords, z_coords,
+                              color=color, alpha=0.3,
+                              label=f'Polygon {i+1}')
+
+        # Add station locations
+        if hasattr(model, 'measurements') and len(model.measurements) > 0:
+            station_x = model.measurements.distance.values
+            station_y = np.zeros_like(station_x)  # Surface stations
+            station_z = np.zeros_like(station_x)
+
+            self.axes.scatter(station_x, station_y, station_z,
+                            c='red', marker='^', s=50,
+                            label='Stations')
+
+        # Set equal aspect ratio and invert Z for depth
+        self.axes.set_box_aspect([1, 1, 0.5])  # Make Z axis shorter
+        self.axes.invert_zaxis()  # Depth increases downward
+
+        self.axes.legend()
+        self.axes.grid(True, alpha=0.3)
+
+        self.canvas.draw()
+        self.plot_status.setText(f"3D view: {model.npoly} polygons, {len(model.measurements)} stations")
+
+    def run_inversion(self):
+        """Start inversion process"""
+        if not self.api.current_model:
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
+            return
+
+        iterations = self.iterations_spin.value()
+        enable_adjustment = self.adjust_params_check.isChecked()
+
+        # Disable run button and show progress
+        self.run_button.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, iterations)
+        self.status_label.setText("Running inversion...")
+
+        # Clear previous results
+        self.results_text.clear()
+
+        # Start inversion in background thread
+        self.inversion_worker = InversionWorker(self.api, iterations, enable_adjustment)
+        self.inversion_worker.progress.connect(self.update_progress)
+        self.inversion_worker.finished.connect(self.on_inversion_finished)
+        self.inversion_worker.error.connect(self.on_inversion_error)
+        self.inversion_worker.start()
 
     def create_parameter_tab(self):
         """Create parameter editor tab"""
         param_widget = QWidget()
         layout = QVBoxLayout(param_widget)
 
-        # Project settings
+        # Project settings group
         settings_group = QGroupBox("Project Settings")
         settings_layout = QFormLayout(settings_group)
 
-        self.project_name_edit = QLineEdit()
+        # Ambient field
         self.ambient_field_edit = QLineEdit()
         self.ambient_field_edit.setValidator(QDoubleValidator(0, 2, 3))
+        self.ambient_field_edit.setText("0.5")
+        settings_layout.addRow("Ambient Field (T):", self.ambient_field_edit)
+
+        # Inclination
         self.inclination_edit = QLineEdit()
-        self.inclination_edit.setValidator(QDoubleValidator(-90, 90, 2))
-        self.azimuth_edit = QLineEdit()
-        self.azimuth_edit.setValidator(QDoubleValidator(-180, 180, 2))
-
-        settings_layout.addRow("Project Name:", self.project_name_edit)
-        settings_layout.addRow("Ambient Field:", self.ambient_field_edit)
+        self.inclination_edit.setValidator(QDoubleValidator(-90, 90, 1))
+        self.inclination_edit.setText("65.0")
         settings_layout.addRow("Inclination (°):", self.inclination_edit)
-        settings_layout.addRow("Azimuth (°):", self.azimuth_edit)
 
-        # Update button
-        update_settings_btn = QPushButton("Update Settings")
-        update_settings_btn.clicked.connect(self.update_project_settings)
-        settings_layout.addRow(update_settings_btn)
+        # Azimuth
+        self.azimuth_edit = QLineEdit()
+        self.azimuth_edit.setValidator(QDoubleValidator(-180, 180, 1))
+        self.azimuth_edit.setText("12.0")
+        settings_layout.addRow("Declination (°):", self.azimuth_edit)
 
         layout.addWidget(settings_group)
 
-        # Model parameters table
-        self.param_table = QTableWidget()
-        self.param_table.setColumnCount(4)
-        self.param_table.setHorizontalHeaderLabels(["Polygon", "Density", "Susceptibility", "Strike Length"])
-        self.param_table.setMaximumHeight(300)
+        # Update button
+        self.update_params_button = QPushButton("Update Parameters")
+        self.update_params_button.clicked.connect(self.update_project_parameters)
+        layout.addWidget(self.update_params_button)
 
-        # Update button for parameters
-        update_params_btn = QPushButton("Update Parameters")
-        update_params_btn.clicked.connect(self.update_model_parameters)
-
+        # Parameter table placeholder
+        self.param_table = QTextEdit()
+        self.param_table.setPlaceholderText("Model parameters will appear here after loading a project...")
         layout.addWidget(self.param_table)
-        layout.addWidget(update_params_btn)
 
         self.tab_widget.addTab(param_widget, "Parameters")
 
@@ -253,98 +694,19 @@ class GravityModelingApp(QMainWindow):
 
         # Results text area
         self.results_text = QTextEdit()
-        self.results_text.setPlainText("Inversion results will be displayed here")
-        self.results_text.setReadOnly(True)
-
+        self.results_text.setPlaceholderText("Inversion results will appear here...")
         layout.addWidget(self.results_text)
 
         self.tab_widget.addTab(results_widget, "Results")
 
-    def create_menus(self):
-        """Create application menus"""
-        menubar = self.menuBar()
-
-        # File menu
-        file_menu = menubar.addMenu('File')
-
-        new_action = QAction('New Project', self)
-        new_action.triggered.connect(self.new_project)
-        file_menu.addAction(new_action)
-
-        load_action = QAction('Load Project', self)
-        load_action.triggered.connect(self.load_project)
-        file_menu.addAction(load_action)
-
-        save_action = QAction('Save Project', self)
-        save_action.triggered.connect(self.save_project)
-        file_menu.addAction(save_action)
-
-        file_menu.addSeparator()
-        exit_action = QAction('Exit', self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-
-        # View menu
-        view_menu = menubar.addMenu('View')
-
-        # Help menu
-        help_menu = menubar.addMenu('Help')
-
-        validate_action = QAction('Validate Project', self)
-        validate_action.triggered.connect(self.validate_project)
-        help_menu.addAction(validate_action)
-
-    def create_status_bar(self):
-        """Create status bar"""
-        self.status_bar = self.statusBar()
-
-        # Status message
-        self.status_label = QLabel("Ready")
-        self.status_bar.addWidget(self.status_label)
-
-    def apply_styling(self):
-        """Apply application styling"""
-        # Set a modern font
-        font = QFont("Segoe UI", 9)
-        self.setFont(font)
-
-    def new_project(self):
-        """Create a new project"""
-        result = self.api.create_new_project("New Project")
-        self.handle_api_result(result, "New project created")
-
-    def load_project(self):
-        """Load a project file"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Load Project", "", "JSON files (*.json)"
-        )
-
-        if file_path:
-            result = self.api.load_project(file_path)
-            self.handle_api_result(result, "Project loaded")
-            if result["success"]:
-                self.update_ui_from_project()
-
-    def save_project(self):
-        """Save the current project"""
+    def update_project_parameters(self):
+        """Update project parameters from UI"""
         if not self.api.current_model:
-            QMessageBox.warning(self, "Warning", "No project loaded")
+            QMessageBox.warning(self, "No Project", "Please load a project first.")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Project", "", "JSON files (*.json)"
-        )
-
-        if file_path:
-            result = self.api.save_project(file_path)
-            self.handle_api_result(result, "Project saved")
-
-    def update_project_settings(self):
-        """Update project settings from UI"""
         updates = {}
         try:
-            if self.project_name_edit.text():
-                updates["project_name"] = self.project_name_edit.text()
             if self.ambient_field_edit.text():
                 updates["ambient_field"] = float(self.ambient_field_edit.text())
             if self.inclination_edit.text():
@@ -352,171 +714,262 @@ class GravityModelingApp(QMainWindow):
             if self.azimuth_edit.text():
                 updates["azimuth"] = float(self.azimuth_edit.text())
 
-            if updates:
-                result = self.api.update_model_parameters(updates)
-                self.handle_api_result(result, "Settings updated")
+            result = self.api.update_project_settings(updates)
+            if result["success"]:
+                self.status_label.setText("Parameters updated successfully")
+                # Update parameter display
+                self.update_parameter_table()
+            else:
+                QMessageBox.warning(self, "Update Failed", result.get("message", "Unknown error"))
 
         except ValueError as e:
             QMessageBox.warning(self, "Invalid Input", f"Please enter valid numbers: {e}")
 
-    def update_model_parameters(self):
-        """Update model parameters from table"""
-        if not self.api.current_model:
-            return
-
-        polygons = []
-        try:
-            for row in range(self.param_table.rowCount()):
-                poly_id = int(self.param_table.item(row, 0).text()) if self.param_table.item(row, 0) else row + 1
-                density = float(self.param_table.item(row, 1).text()) if self.param_table.item(row, 1) else 0.0
-                susceptibility = float(self.param_table.item(row, 2).text()) if self.param_table.item(row, 2) else 0.0
-                strike_length = float(self.param_table.item(row, 3).text()) if self.param_table.item(row, 3) else 100.0
-
-                polygons.append({
-                    "id": poly_id,
-                    "density": density,
-                    "susceptibility": susceptibility,
-                    "strike_length": strike_length
-                })
-
-            if polygons:
-                result = self.api.update_model_parameters({"polygons": polygons})
-                self.handle_api_result(result, "Parameters updated")
-
-        except (ValueError, AttributeError) as e:
-            QMessageBox.warning(self, "Invalid Input", f"Please enter valid numbers: {e}")
-
-    def run_inversion(self):
-        """Run the inversion algorithm"""
-        if not self.api.current_model:
-            QMessageBox.warning(self, "Warning", "No project loaded")
-            return
-
-        # Show progress
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, self.iterations_spin.value())
-        self.run_button.setEnabled(False)
-        self.status_label.setText("Running inversion...")
-
-        # Run inversion in background thread
-        self.worker = InversionWorker(
-            self.api,
-            self.iterations_spin.value(),
-            self.adjust_params_check.isChecked()
-        )
-        self.worker.progress.connect(self.on_inversion_progress)
-        self.worker.finished.connect(self.on_inversion_finished)
-        self.worker.error.connect(self.on_inversion_error)
-        self.worker.start()
-
-    def on_inversion_progress(self, progress: InversionProgress):
-        """Handle inversion progress updates"""
-        self.progress_bar.setValue(progress.iteration)
-        self.status_label.setText(progress.message)
-
-        # Update results tab with current progress
-        self.results_text.append(f"{progress.message}")
-
-    def on_inversion_finished(self, result):
-        """Handle inversion completion"""
-        self.progress_bar.setVisible(False)
-        self.run_button.setEnabled(True)
-
-        if result["success"]:
-            self.status_label.setText("Inversion completed")
-            self.update_results_display(result)
-            self.update_parameter_table()
-        else:
-            self.status_label.setText("Inversion failed")
-            self.results_text.setPlainText(f"Error: {result.get('message', 'Unknown error')}")
-            if "errors" in result:
-                for error in result["errors"]:
-                    self.results_text.append(f"  - {error}")
-
-    def on_inversion_error(self, error_msg):
-        """Handle inversion error"""
-        self.progress_bar.setVisible(False)
-        self.run_button.setEnabled(True)
-        self.status_label.setText("Inversion failed")
-        self.results_text.setPlainText(f"Error: {error_msg}")
-
-    def update_ui_from_project(self):
-        """Update UI elements with current project data"""
-        if not self.api.current_model:
-            return
-
-        # Update project explorer
-        self.update_project_explorer()
-
-        # Update settings fields
-        project_info = self.api.get_project_info()
-        if project_info:
-            self.project_name_edit.setText(project_info.get("name", ""))
-            self.ambient_field_edit.setText(str(project_info.get("ambient_field", "")))
-            self.inclination_edit.setText(str(project_info.get("inclination", "")))
-            self.azimuth_edit.setText(str(project_info.get("azimuth", "")))
-
-        # Update parameter table
-        self.update_parameter_table()
-
-        # Update results
-        self.results_text.setPlainText(f"Project loaded: {self.api.current_model.project_name}\n"
-                                     f"Stations: {self.api.current_model.nstat}\n"
-                                     f"Polygons: {self.api.current_model.npoly}")
-
-    def update_parameter_table(self):
-        """Update the parameter table with current model data"""
-        params = self.api.get_model_parameters()
-        if not params:
-            return
-
-        self.param_table.setRowCount(params["total_polygons"])
-        for i, poly in enumerate(params["polygons"]):
-            self.param_table.setItem(i, 0, QTableWidgetItem(str(poly["id"])))
-            self.param_table.setItem(i, 1, QTableWidgetItem(f"{poly['density']:.4f}"))
-            self.param_table.setItem(i, 2, QTableWidgetItem(f"{poly['susceptibility']:.4f}"))
-            self.param_table.setItem(i, 3, QTableWidgetItem(f"{poly['strike_length']:.1f}"))
-
     def update_results_display(self, result):
         """Update results display with inversion results"""
-        results_text = "Inversion Results:\n\n"
-
-        if "results" in result and result["results"]:
+        if "results" in result:
             results = result["results"]
-            if "polygons" in results:
-                results_text += "Final Model Parameters:\n"
-                for poly in results["polygons"]:
-                    results_text += f"Polygon {poly['id']}: Density={poly['density']:.4f}, "
-                    results_text += f"Susceptibility={poly['susceptibility']:.4f}, "
-                    results_text += f"Strike Length={poly['strike_length']:.1f}\n"
+            self.results_text.append("Inversion Results:")
+            self.results_text.append(f"Final χ²: {results.get('chi_squared', 'N/A')}")
+            self.results_text.append(f"Iterations: {results.get('iterations', 'N/A')}")
+            if "final_parameters" in results:
+                self.results_text.append("Final Parameters:")
+                for param in results["final_parameters"]:
+                    self.results_text.append(f"  {param}")
 
-            if "chi_squared" in results and results["chi_squared"] is not None:
-                results_text += f"\nFinal Chi-squared: {results['chi_squared']:.2f}"
+    def update_parameter_table(self):
+        """Update parameter table with current model parameters"""
+        if not self.api.current_model:
+            return
 
-        self.results_text.setPlainText(results_text)
+        # This would update a parameter table if it existed
+        # For now, just update the status
+        params = self.api.get_model_parameters()
+        if params:
+            self.status_label.setText(f"Model: {params['total_polygons']} polygons loaded")
 
-    def validate_project(self):
-        """Validate the current project"""
-        result = self.api.validate_project()
+    def update_ui_from_project(self):
+        """Update UI elements when a project is loaded"""
+        self.update_project_explorer()
+        self.update_parameter_table()
+        # Switch to visualization tab
+        self.tab_widget.setCurrentIndex(0)  # Visualization tab
 
-        if result["valid"]:
-            QMessageBox.information(self, "Validation", "Project is valid!")
-        else:
-            error_msg = result["message"]
-            QMessageBox.warning(self, "Validation Errors", error_msg)
+    def create_batch_processing_tab(self):
+        """Create batch processing tab for multiple projects"""
+        batch_widget = QWidget()
+        layout = QVBoxLayout(batch_widget)
 
-    def handle_api_result(self, result, success_message):
-        """Handle API result and show appropriate message"""
-        if result["success"]:
-            self.status_label.setText(success_message)
-            if "project_info" in result and result["project_info"]:
-                self.update_ui_from_project()
-        else:
-            self.status_label.setText("Operation failed")
-            error_msg = result.get("message", "Unknown error")
-            if "errors" in result:
-                error_msg += "\n\nErrors:\n" + "\n".join(f"  - {e}" for e in result["errors"])
-            QMessageBox.warning(self, "Error", error_msg)
+        # Project selection
+        project_group = QGroupBox("Project Selection")
+        project_layout = QVBoxLayout(project_group)
+
+        # Add projects button
+        self.add_projects_button = QPushButton("Add Projects...")
+        self.add_projects_button.clicked.connect(self.add_batch_projects)
+        project_layout.addWidget(self.add_projects_button)
+
+        # Project list
+        self.batch_project_list = QTextEdit()
+        self.batch_project_list.setMaximumHeight(150)
+        self.batch_project_list.setPlaceholderText("Selected projects will appear here...")
+        project_layout.addWidget(self.batch_project_list)
+
+        layout.addWidget(project_group)
+
+        # Processing options
+        options_group = QGroupBox("Processing Options")
+        options_layout = QFormLayout(options_group)
+
+        self.batch_iterations = QSpinBox()
+        self.batch_iterations.setRange(1, 100)
+        self.batch_iterations.setValue(10)
+        options_layout.addRow("Iterations per project:", self.batch_iterations)
+
+        self.batch_adjust_params = QCheckBox("Enable parameter adjustment")
+        self.batch_adjust_params.setChecked(True)
+        options_layout.addRow("", self.batch_adjust_params)
+
+        self.batch_save_results = QCheckBox("Save results to files")
+        self.batch_save_results.setChecked(True)
+        options_layout.addRow("", self.batch_save_results)
+
+        layout.addWidget(options_group)
+
+        # Control buttons
+        buttons_layout = QHBoxLayout()
+
+        self.start_batch_button = QPushButton("Start Batch Processing")
+        self.start_batch_button.clicked.connect(self.start_batch_processing)
+        self.start_batch_button.setEnabled(False)
+        buttons_layout.addWidget(self.start_batch_button)
+
+        self.stop_batch_button = QPushButton("Stop Batch")
+        self.stop_batch_button.clicked.connect(self.stop_batch_processing)
+        self.stop_batch_button.setEnabled(False)
+        buttons_layout.addWidget(self.stop_batch_button)
+
+        buttons_layout.addStretch()
+        layout.addLayout(buttons_layout)
+
+        # Progress and results
+        self.batch_progress = QTextEdit()
+        self.batch_progress.setMaximumHeight(200)
+        self.batch_progress.setPlaceholderText("Batch processing results will appear here...")
+        layout.addWidget(self.batch_progress)
+
+        self.tab_widget.addTab(batch_widget, "Batch Processing")
+
+        # Initialize batch processing variables
+        self.batch_projects = []
+        self.batch_worker = None
+        self.batch_running = False
+
+    def add_batch_projects(self):
+        """Add multiple projects for batch processing"""
+        file_dialog = QFileDialog()
+        file_dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
+        file_dialog.setNameFilter("Project files (*.json)")
+
+        if file_dialog.exec():
+            selected_files = file_dialog.selectedFiles()
+            self.batch_projects.extend(selected_files)
+
+            # Update display
+            project_text = "\n".join([os.path.basename(p) for p in self.batch_projects])
+            self.batch_project_list.setPlainText(project_text)
+
+            # Enable start button if we have projects
+            self.start_batch_button.setEnabled(len(self.batch_projects) > 0)
+
+    def start_batch_processing(self):
+        """Start batch processing of selected projects"""
+        if not self.batch_projects:
+            QMessageBox.warning(self, "No Projects", "Please add projects to process first.")
+            return
+
+        self.batch_running = True
+        self.start_batch_button.setEnabled(False)
+        self.stop_batch_button.setEnabled(True)
+        self.batch_progress.clear()
+
+        # Start batch processing in background
+        self.batch_worker = BatchProcessingWorker(
+            self.batch_projects,
+            self.batch_iterations.value(),
+            self.batch_adjust_params.isChecked(),
+            self.batch_save_results.isChecked()
+        )
+        self.batch_worker.progress.connect(self.update_batch_progress)
+        self.batch_worker.finished.connect(self.on_batch_finished)
+        self.batch_worker.error.connect(self.on_batch_error)
+        self.batch_worker.start()
+
+    def stop_batch_processing(self):
+        """Stop batch processing"""
+        if self.batch_worker and self.batch_running:
+            self.batch_worker.stop()
+            self.batch_running = False
+            self.start_batch_button.setEnabled(True)
+            self.stop_batch_button.setEnabled(False)
+            self.batch_progress.append("Batch processing stopped by user.")
+
+    def update_batch_progress(self, message):
+        """Update batch processing progress"""
+        self.batch_progress.append(message)
+        # Scroll to bottom
+        cursor = self.batch_progress.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.batch_progress.setTextCursor(cursor)
+
+    def on_batch_finished(self, results):
+        """Handle batch processing completion"""
+        self.batch_running = False
+        self.start_batch_button.setEnabled(True)
+        self.stop_batch_button.setEnabled(False)
+
+        self.batch_progress.append(f"\nBatch processing completed!")
+        self.batch_progress.append(f"Processed {len(results)} projects")
+
+        # Show summary
+        successful = sum(1 for r in results if r.get('success', False))
+        self.batch_progress.append(f"Successful: {successful}/{len(results)}")
+
+    def on_batch_error(self, error_msg):
+        """Handle batch processing error"""
+        self.batch_running = False
+        self.start_batch_button.setEnabled(True)
+        self.stop_batch_button.setEnabled(False)
+        self.batch_progress.append(f"Error: {error_msg}")
+
+
+class BatchProcessingWorker(QThread):
+    """Worker thread for batch processing multiple projects"""
+    progress = Signal(str)
+    finished = Signal(list)
+    error = Signal(str)
+
+    def __init__(self, project_files, iterations, adjust_params, save_results):
+        super().__init__()
+        self.project_files = project_files
+        self.iterations = iterations
+        self.adjust_params = adjust_params
+        self.save_results = save_results
+        self.stop_requested = False
+
+    def stop(self):
+        """Request stop"""
+        self.stop_requested = True
+
+    def run(self):
+        """Run batch processing"""
+        results = []
+
+        try:
+            for i, project_file in enumerate(self.project_files):
+                if self.stop_requested:
+                    break
+
+                self.progress.emit(f"Processing project {i+1}/{len(self.project_files)}: {os.path.basename(project_file)}")
+
+                # Create API instance for this project
+                api = GravityModelingAPI()
+
+                # Load project
+                result = api.load_project(project_file)
+                if not result.get('success', False):
+                    self.progress.emit(f"  Failed to load: {result.get('message', 'Unknown error')}")
+                    results.append({'success': False, 'file': project_file, 'error': result.get('message')})
+                    continue
+
+                self.progress.emit(f"  Running inversion ({self.iterations} iterations)...")
+
+                # Run inversion
+                inv_result = api.run_inversion(
+                    iterations=self.iterations,
+                    enable_parameter_adjustment=self.adjust_params
+                )
+
+                if inv_result.get('success', False):
+                    self.progress.emit(f"  Success! Final χ² = {inv_result.get('results', {}).get('chi_squared', 'N/A'):.2f}")
+
+                    # Save results if requested
+                    if self.save_results:
+                        # Could save results to file here
+                        pass
+                else:
+                    self.progress.emit(f"  Failed: {inv_result.get('message', 'Unknown error')}")
+
+                results.append({
+                    'success': inv_result.get('success', False),
+                    'file': project_file,
+                    'result': inv_result
+                })
+
+            self.finished.emit(results)
+
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 def main():

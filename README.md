@@ -131,3 +131,41 @@ python create_spec.py
 # Build executable
 pyinstaller --clean gravity_modeling.spec
 ```
+
+## Documentation
+
+The project includes comprehensive Sphinx documentation covering installation, usage, theory, and API reference.
+
+### Building Documentation Locally
+
+```bash
+# Install documentation dependencies
+uv sync --dev
+
+# Build HTML documentation
+cd docs
+uv run sphinx-build . _build/html
+
+# Open in browser
+start _build/html/index.html  # Windows
+open _build/html/index.html   # macOS
+xdg-open _build/html/index.html  # Linux
+```
+
+### Online Documentation
+
+Documentation is automatically published to GitHub Pages on every push to the main branch.
+
+**To enable GitHub Pages:**
+1. Go to your repository settings
+2. Navigate to "Pages" in the left sidebar
+3. Under "Source", select "GitHub Actions"
+4. The documentation will be available at: `https://[username].github.io/[repository-name]/`
+
+The documentation includes:
+- **Installation Guide**: Multiple installation methods
+- **Quick Start**: Hands-on examples
+- **Theory**: Mathematical background of gravity modeling
+- **GUI Guide**: Complete user interface documentation
+- **API Reference**: Auto-generated from code docstrings
+- **Examples**: Showcase of included datasets
