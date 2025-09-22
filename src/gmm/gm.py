@@ -72,6 +72,9 @@ class GMModel():
             self.nbase = self.obs_agreement_station - 1  # 0-based indexing
             self.ian = 0  # magnetic field flag
 
+            # Calculate magnetic field direction components
+            self.calculate_magnetic_field_components()
+
     def inversion(self, *args, **kwargs):
         '''
         Inversion Program
@@ -142,3 +145,25 @@ class GMModel():
             # Simple rectangular polygon
             self.x[0, :7] = [-1000, 1000, 45, 24.4, 10.175, 0, -1000]
             self.z[0, :7] = [0, 0, -1.94, -2.84, -4, -4.4, -4.4]
+
+    def calculate_magnetic_field_components(self):
+        """Calculate magnetic field direction components for talw calculations"""
+        # Convert degrees to radians
+        incl_rad = np.radians(self.inclination)
+        azim_rad = np.radians(self.azimuth)
+
+        # Magnetic field components (similar to Fortran main.f)
+        if self.modeling_mode == "magnetics":
+            # For magnetics: PXC = cos(incl)*cos(2*azim)
+            pxcf = np.cos(incl_rad) * np.cos(2 * azim_rad)
+            pzcf = -np.sin(incl_rad)
+            qcf = 200000.0 * self.ambient_field
+        else:
+            # For gravity or default
+            pxcf = 0.0
+            pzcf = 0.0
+            qcf = 0.0
+
+        self.pxcf = pxcf
+        self.pzcf = pzcf
+        self.qcf = qcf

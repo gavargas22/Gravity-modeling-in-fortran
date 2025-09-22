@@ -119,7 +119,7 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
                     z2 = model.z[i, k+1]
 
                     # Call TALW subroutine (needs to be translated)
-                    a, b = talw(z1, z2, x1, x2, sl1, el)
+                    a, b = talw(z1, z2, x1, x2, sl1, el, model.pxcf, model.pzcf, model.qcf)
                     gte[i, j] += a
                     mte[i, j] += b
 
@@ -164,6 +164,10 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
             difsq = gdif[i]**2
             ssr += difsq
             ssrm += difsq
+
+        # Calculate magnetic differences
+        for i in range(model.nstat):
+            mdif[i] = model.mag[i] - mtot[i]
 
         chisq = (ssr/vg) + (ssrm/vm)
 

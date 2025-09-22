@@ -6,7 +6,7 @@ Calculates gravitational and magnetic field integrals for polygon sides
 import numpy as np
 
 
-def talw(z1, z2, x1, x2, y1, el):
+def talw(z1, z2, x1, x2, y1, el, pxcf, pzcf, qcf):
     """
     Calculate the integral over one side of a polygon with finite strike length
 
@@ -15,16 +15,12 @@ def talw(z1, z2, x1, x2, y1, el):
     x1, x2: float - horizontal distances of endpoints
     y1: float - strike length
     el: float - elevation
+    pxcf, pzcf, qcf: float - magnetic field components
 
     Returns:
     a: float - gravity integral contribution
     b: float - magnetic integral contribution
     """
-    # Get magnetic field components from common block (would be passed as parameters)
-    # For now, use placeholder values - these should come from the model
-    pxcf = 1.0  # Placeholder
-    pzcf = 0.0  # Placeholder
-    qcf = 1.0   # Placeholder
 
     ysq = y1 * y1
     zmag1 = z1 + el
