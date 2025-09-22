@@ -6,7 +6,8 @@ Provides clean separation between GUI and computation logic
 from typing import Optional, Callable, Dict, Any
 from pathlib import Path
 import numpy as np
-from .gm import GMModel, InversionProgress
+from .gm import GMModel
+from .types import InversionProgress
 
 
 class GravityModelingAPI:

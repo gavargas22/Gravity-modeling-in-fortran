@@ -5,17 +5,8 @@ import pandas as pd
 import pathlib
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
-from gmm.inversion_complete import execute_inversion_complete
-
-
-@dataclass
-class InversionProgress:
-    """Data class for inversion progress reporting"""
-    iteration: int
-    max_iterations: int
-    chi_squared: float
-    parameters_updated: int
-    message: str
+from .inversion_complete import execute_inversion_complete
+from .types import InversionProgress
 
 
 class GMModel():
@@ -156,7 +147,7 @@ class GMModel():
         self.nstat = len(self.measurements)
         self.grav = self.measurements.obs_grav.values
         self.mag = self.measurements.obs_mag.values
-        self.elev = self.measurements.get('elev', np.zeros(self.nstat)).values
+        self.elev = self.measurements.get('elev', np.zeros(self.nstat)).values if hasattr(self.measurements.get('elev', None), 'values') else np.zeros(self.nstat)
 
         # Initialize computed fields
         self.gtot = np.zeros(self.nstat)
@@ -252,6 +243,53 @@ class GMModel():
         except Exception as e:
             print(f"Warning: Could not save model geometry: {e}")
 
+    def load_model_geometry(self):
+        """Load polygon geometry from model CSV file"""
+        model_file = self.inputs_dir.joinpath("model_1.csv")
+        if model_file.exists():
+            model_data = pd.read_csv(model_file)
+
+            # Group by unit (polygon number)
+            polygons = model_data.groupby('unit')
+
+            self.npoly = len(polygons)
+            self.nsides = np.zeros(self.npoly, dtype=int)
+            self.z = np.zeros((self.npoly, 25))
+            self.x = np.zeros((self.npoly, 25))
+            self.sl = np.zeros(self.npoly)
+            self.densty = np.zeros(self.npoly)
+            self.suscp = np.zeros(self.npoly)
+
+            for i, (poly_id, poly_data) in enumerate(polygons):
+                vertices = poly_data[['x', 'z']].values
+                n_vertices = len(vertices)
+                self.nsides[i] = n_vertices - 1  # number of sides = vertices - 1
+
+                # Store vertices
+                for j in range(n_vertices):
+                    self.x[i, j] = vertices[j, 0]
+                    self.z[i, j] = vertices[j, 1]
+
+                # Set default strike length (would be in config)
+                self.sl[i] = 100.0
+
+                # Set default physical properties (would be in config)
+                self.densty[i] = -0.2  # g/cm³
+                self.suscp[i] = 0.0    # SI units
+        else:
+            # Default single polygon for testing
+            self.npoly = 1
+            self.nsides = np.array([6])
+            self.z = np.zeros((12, 25))
+            self.x = np.zeros((12, 25))
+            self.sl = np.array([100.0])
+            self.densty = np.array([-0.2])
+            self.suscp = np.array([0.0])
+
+            # Simple rectangular polygon
+            self.x[0, :7] = [-1000, 1000, 45, 24.4, 10.175, 0, -1000]
+            self.z[0, :7] = [0, 0, -1.94, -2.84, -4, -4.4, -4.4]
+
     def get_validation_report(self) -> str:
         """Get a formatted validation report"""
         if self.is_valid:
@@ -262,7 +300,7 @@ class GMModel():
             report += f"  - {error}\n"
         return report
 
-    def inversion(self, *args, **kwargs):
+    def inversion(self, iterations=10, *args, **kwargs):
         '''
         Inversion Program with progress reporting
         '''
@@ -273,4 +311,43 @@ class GMModel():
         if self.progress_callback:
             kwargs['progress_callback'] = self.progress_callback
 
-        execute_inversion_complete(iterations=10, model=self, **kwargs)
+        execute_inversion_complete(iterations=iterations, model=self, **kwargs)
+
+    def read_data(self, *args, **kwargs):
+        '''
+        Read Data
+        =========
+
+        This function opens up a file located in the place where we store the
+        profile .json
+
+        The file must be inside of the inputs folder and named input_data.csv
+
+        Returns a Pandas dataframe with all of the data measurements
+        '''
+        data_loc = self.inputs_dir.joinpath("input_data.csv")
+        data = pd.read_csv(data_loc.__str__()).dropna(axis=1)
+
+        return(data)
+
+    def calculate_magnetic_field_components(self):
+        """Calculate magnetic field direction components for talw calculations"""
+        # Convert degrees to radians
+        incl_rad = np.radians(self.inclination)
+        azim_rad = np.radians(self.azimuth)
+
+        # Magnetic field components (similar to Fortran main.f)
+        if self.modeling_mode == "magnetics":
+            # For magnetics: PXC = cos(incl)*cos(2*azim)
+            pxcf = np.cos(incl_rad) * np.cos(2 * azim_rad)
+            pzcf = -np.sin(incl_rad)
+            qcf = 200000.0 * self.ambient_field
+        else:
+            # For gravity or default
+            pxcf = 0.0
+            pzcf = 0.0
+            qcf = 0.0
+
+        self.pxcf = pxcf
+        self.pzcf = pzcf
+        self.qcf = qcf

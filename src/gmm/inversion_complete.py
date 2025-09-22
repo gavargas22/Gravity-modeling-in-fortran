@@ -6,7 +6,7 @@ Enhanced with progress reporting and parameter adjustment
 import numpy as np
 from scipy.linalg import svd
 from typing import Optional, Callable
-from .gm import InversionProgress
+from .types import InversionProgress
 from .talw import talw  # We'll need to translate talw.f as well
 
 
