@@ -1,4 +1,4 @@
-from test_simulation import test_simulation
+from tests.test_simulation import test_simulation
 
 
 def run_gmm():

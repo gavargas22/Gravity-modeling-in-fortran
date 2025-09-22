@@ -22,8 +22,7 @@ COPY . /app
 # RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
 # USER appuser
 
-# Build the inver module221
-RUN python -m numpy.f2py -c inver.f svd.f talw.f rotate.f -m inver
+# Note: Fortran code has been fully translated to Python - no f2py compilation needed
 
 # During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
-CMD ["python", "src/test_simulation.py"]
+CMD ["python", "tests/test_simulation.py"]

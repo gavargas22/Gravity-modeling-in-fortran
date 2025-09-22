@@ -27,7 +27,7 @@
 				]
 			},
 			"python": {
-				"file": "src/test_simulation.py"
+				"file": "tests/test_simulation.py"
 			}
 		}
 	]

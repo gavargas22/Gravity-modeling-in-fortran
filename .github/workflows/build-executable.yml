@@ -1,0 +1,104 @@
+name: Build Executable
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (optional)'
+        required: false
+        default: 'dev'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            ext: ''
+          - os: windows-latest
+            platform: windows
+            ext: '.exe'
+          - os: macOS-latest
+            platform: macos
+            ext: ''
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Create PyInstaller spec file
+      run: |
+        python create_spec.py
+      shell: bash
+
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --clean gravity_modeling.spec
+      shell: bash
+
+    - name: Test executable (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      run: |
+        cd dist
+        ls -la
+        # Basic test - check if executable exists and is executable
+        if [ -f "gravity_modeling${{ matrix.ext }}" ]; then
+          echo "✓ Executable created successfully"
+          file "gravity_modeling${{ matrix.ext }}"
+        else
+          echo "✗ Executable not found"
+          exit 1
+        fi
+
+    - name: Test executable (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        cd dist
+        dir
+        # Basic test - check if executable exists
+        if exist "gravity_modeling${{ matrix.ext }}" (
+          echo "✓ Executable created successfully"
+          where "gravity_modeling${{ matrix.ext }}"
+        ) else (
+          echo "✗ Executable not found"
+          exit 1
+        )
+
+    - name: Upload executable artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: gravity-modeling-${{ matrix.platform }}
+        path: dist/gravity_modeling${{ matrix.ext }}
+        retention-days: 30
+
+    - name: Upload full distribution (on release)
+      if: github.event_name == 'release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: gravity-modeling-${{ matrix.platform }}-full
+        path: dist/
+        retention-days: 90

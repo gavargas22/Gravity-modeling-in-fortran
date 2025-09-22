@@ -93,3 +93,41 @@ The original Fortran code has been fully translated to Python while maintaining 
 - **Integration**: Seamless integration with scientific Python ecosystem
 - **Performance**: NumPy provides competitive performance
 - **Usability**: Modern GUI with interactive features
+
+## Building Executables
+
+The project includes automated executable building for multiple platforms using PyInstaller and GitHub Actions.
+
+### Automatic Builds
+
+Executables are automatically built when you create a GitHub release or manually trigger the workflow:
+
+1. **Go to Actions tab** in your GitHub repository
+2. **Run "Build Executable" workflow** manually, or
+3. **Create a release** to trigger automatic builds
+
+### Supported Platforms
+
+- **Windows** (.exe)
+- **macOS** (app bundle)
+- **Linux** (binary)
+
+### Download Executables
+
+After the workflow completes, download the executables from:
+- **Actions → Build Executable → Artifacts**
+
+### Local Testing
+
+To test the build process locally:
+
+```bash
+# Install PyInstaller
+pip install pyinstaller
+
+# Create spec file
+python create_spec.py
+
+# Build executable
+pyinstaller --clean gravity_modeling.spec
+```

@@ -8,3 +8,8 @@ dependencies = [
     "pandas>=2.3.2",
     "pint>=0.25",
 ]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.16.0",
+]
