@@ -1,13 +1,16 @@
 """
 Complete Python translation of the Fortran inversion algorithm from inver.f
+Enhanced with progress reporting and parameter adjustment
 """
 
 import numpy as np
 from scipy.linalg import svd
+from typing import Optional, Callable
+from .gm import InversionProgress
 from .talw import talw  # We'll need to translate talw.f as well
 
 
-def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
+def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0, progress_callback=None, enable_parameter_adjustment=False):
     """
     Complete inversion algorithm translated from Fortran inver.f
 
@@ -16,6 +19,8 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
     model: GMModel instance
     vg: float - gravity variance
     vm: float - magnetic variance
+    progress_callback: callable - function to report progress
+    enable_parameter_adjustment: bool - whether to adjust parameters
     """
     print(f"Starting complete inversion with {iterations} iterations")
 
@@ -38,53 +43,25 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
     im = iterations
     mpar = 0
 
-    # Set variables
-    mstat = model.nstat * 2
+    # Report initial progress
+    if progress_callback:
+        progress = InversionProgress(
+            iteration=0,
+            max_iterations=iterations,
+            chi_squared=0.0,
+            parameters_updated=0,
+            message="Initializing inversion..."
+        )
+        progress_callback(progress)
 
-    if model.ian > 0:
-        iden = 0
-        isus = 0
-        iver = 0
+    # Set up parameter adjustment if enabled
+    if enable_parameter_adjustment:
+        # For now, enable density adjustment for first polygon
+        nden[0] = 1  # Parameter index 1 for density of polygon 1
+        mpar = 1
+        print(f"Parameter adjustment enabled: {mpar} parameters to adjust")
     else:
-        # For now, set defaults (would be user input in Fortran)
-        iden = 0  # Number of density parameters to adjust
-        isus = 0  # Number of susceptibility parameters to adjust
-        iver = 0  # Number of vertex parameters to adjust
-
-    # Initialize arrays for each polygon
-    for i in range(model.npoly):
-        nden[i] = 0
-        nsus[i] = 0
-        ns = model.nsides[i] + 1
-        for j in range(ns):
-            ivx[i, j] = 0
-            ivz[i, j] = 0
-
-    # Input parameters for inversion
-    itest = 0
-    if iden <= 0:
-        pass
-    else:
-        # Would read density parameter assignments
-        pass
-
-    if isus <= 0:
-        pass
-    else:
-        # Would read susceptibility parameter assignments
-        pass
-
-    if iver <= 0:
-        pass
-    else:
-        # Would read vertex parameter assignments
-        pass
-
-    mpar = iden + isus + iver
-    if itest < mpar:
-        mpar = itest
-
-    print(f"A total of {mpar} parameters to be adjusted")
+        print("Parameter adjustment disabled - running forward modeling only")
 
     # Main iteration loop
     while im > 0:
@@ -118,18 +95,12 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
                     z1 = model.z[i, k]
                     z2 = model.z[i, k+1]
 
-                    # Call TALW subroutine (needs to be translated)
+                    # Call TALW subroutine
                     a, b = talw(z1, z2, x1, x2, sl1, el, model.pxcf, model.pzcf, model.qcf)
                     gte[i, j] += a
                     mte[i, j] += b
 
-                    if im == iterations:  # First iteration
-                        continue
-
-                    # Vertex perturbation calculations would go here
-                    # (omitted for initial implementation)
-
-        # Build system matrix A1
+        # Build system matrix A1 and compute model response
         for i in range(model.nstat):
             k = model.nstat + i  # Note: this was wrong in original partial code
             for j in range(model.npoly):
@@ -171,9 +142,20 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
 
         chisq = (ssr/vg) + (ssrm/vm)
 
-        print(f"Chi-squared: {chisq}")
+        # Report progress
+        if progress_callback:
+            progress = InversionProgress(
+                iteration=iterations - im + 1,
+                max_iterations=iterations,
+                chi_squared=chisq,
+                parameters_updated=mpar,
+                message=f"Iteration {iterations - im + 1}/{iterations}, Chi² = {chisq:.2f}"
+            )
+            progress_callback(progress)
 
-        # If no parameters to adjust, exit
+        print(f"Iteration {iterations - im + 1}: Chi-squared = {chisq}")
+
+        # If no parameters to adjust, exit after first iteration
         if mpar == 0:
             break
 
@@ -189,8 +171,12 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
             a1[j, l] = mdif[i] / vm  # Note: mdif should be magnetic differences
 
         # Perform SVD
-        U, s_svd, Vt = svd(a1[:mstat, :mpar+1], full_matrices=False)
-        v = Vt.T
+        try:
+            U, s_svd, Vt = svd(a1[:model.nstat*2, :mpar+1], full_matrices=False)
+            v = Vt.T
+        except np.linalg.LinAlgError:
+            print("SVD failed - matrix may be singular")
+            break
 
         # Truncate small singular values
         p = 0.0001
@@ -215,13 +201,20 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
                 _del[i] += v[i, j] * e[j]
 
         # Update parameters
+        params_updated = 0
         for i in range(mpar):
             print(f"Parameter update {i+1}: {_del[i]}")
             for j in range(model.npoly):
                 if nden[j]-1 == i:  # 0-based
+                    old_val = model.densty[j]
                     model.densty[j] += _del[i]
+                    print(f"  Updated polygon {j+1} density: {old_val:.4f} -> {model.densty[j]:.4f}")
+                    params_updated += 1
                 if nsus[j]-1 == i:
+                    old_val = model.suscp[j]
                     model.suscp[j] += _del[i]
+                    print(f"  Updated polygon {j+1} susceptibility: {old_val:.4f} -> {model.suscp[j]:.4f}")
+                    params_updated += 1
 
                 ns = model.nsides[j] + 1
                 for k in range(ns):
@@ -234,9 +227,24 @@ def execute_inversion_complete(iterations, model, vg=1.0, vm=1.0):
 
         im -= 1
 
+    # Store final results
+    model.last_chi_squared = chisq
+    model.iterations_completed = iterations - im
+
     # Print final results
     print("Final model parameters:")
     for i in range(model.npoly):
-        print(f"Polygon {i+1}: Density={model.densty[i]}, Susceptibility={model.suscp[i]}, Strike length={model.sl[i]}")
+        print(f"Polygon {i+1}: Density={model.densty[i]:.4f}, Susceptibility={model.suscp[i]:.4f}, Strike length={model.sl[i]:.1f}")
+
+    # Final progress report
+    if progress_callback:
+        progress = InversionProgress(
+            iteration=iterations,
+            max_iterations=iterations,
+            chi_squared=chisq,
+            parameters_updated=params_updated,
+            message=f"Inversion completed. Final Chi² = {chisq:.2f}"
+        )
+        progress_callback(progress)
 
     return model
