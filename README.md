@@ -147,9 +147,9 @@ cd docs
 uv run sphinx-build . _build/html
 
 # Open in browser
-start docs/_build/html/index.html  # Windows
-open docs/_build/html/index.html   # macOS
-xdg-open docs/_build/html/index.html  # Linux
+start _build/html/index.html  # Windows
+open _build/html/index.html   # macOS
+xdg-open _build/html/index.html  # Linux
 ```
 
 ### Online Documentation
