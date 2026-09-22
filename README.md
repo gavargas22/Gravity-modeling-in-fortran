@@ -1,4 +1,4 @@
-# Gravity-modeling-in-fortran
+# Gravity Modeling
 
 Computer code written in about 1980 that needs to be updated. This project is undergoing modernization to replace legacy Fortran code with a modern Python implementation and PySide6 GUI.
 
@@ -147,9 +147,9 @@ cd docs
 uv run sphinx-build . _build/html
 
 # Open in browser
-start _build/html/index.html  # Windows
-open _build/html/index.html   # macOS
-xdg-open _build/html/index.html  # Linux
+start docs/_build/html/index.html  # Windows
+open docs/_build/html/index.html   # macOS
+xdg-open docs/_build/html/index.html  # Linux
 ```
 
 ### Online Documentation
