@@ -1,4 +1,4 @@
-# Gravity-modeling-in-fortran
+# Gravity Modeling
 
 Computer code written in about 1980 that needs to be updated. This project is undergoing modernization to replace legacy Fortran code with a modern Python implementation and PySide6 GUI.
 
